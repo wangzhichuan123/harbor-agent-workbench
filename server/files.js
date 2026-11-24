@@ -1,6 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 
+function truncateUtf8(value, limit) {
+  let result = "",
+    length = 0;
+  for (const character of value) {
+    const size = Buffer.byteLength(character);
+    if (length + size > limit) break;
+    result += character;
+    length += size;
+  }
+  return result;
+}
 export function safeName(name) {
   const clean = path
     .basename(name.replaceAll("\\", "/"))
@@ -8,7 +19,9 @@ export function safeName(name) {
     .replace(/[\x00-\x1f<>:"|?*]/g, "_");
   if (!clean || clean === "." || clean === ".." || clean.startsWith("."))
     throw new Error("文件名无效");
-  return clean.slice(0, 180);
+  const extension = truncateUtf8(path.extname(clean), 32);
+  const stem = clean.slice(0, clean.length - path.extname(clean).length);
+  return truncateUtf8(stem, 180 - Buffer.byteLength(extension)) + extension;
 }
 export function resolveFile(root, relative) {
   if (typeof relative !== "string" || !relative || relative.includes("\0"))
@@ -36,7 +49,15 @@ export function listFiles(root) {
   const files = [];
   function walk(dir, prefix = "", depth = 0) {
     if (depth > 12 || files.length >= 1500) return;
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+    let entries;
+    try {
+      entries = fs.readdirSync(dir, { withFileTypes: true });
+    } catch (error) {
+      if (["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code)) return;
+      throw error;
+    }
+    for (const entry of entries) {
+      if (files.length >= 1500) break;
       if (
         entry.name.startsWith(".") ||
         skipped.has(entry.name) ||
@@ -47,7 +68,14 @@ export function listFiles(root) {
       if (entry.isDirectory())
         walk(path.join(dir, entry.name), relative + "/", depth + 1);
       else if (entry.isFile()) {
-        const stat = fs.statSync(path.join(dir, entry.name));
+        let stat;
+        try {
+          stat = fs.statSync(path.join(dir, entry.name));
+        } catch (error) {
+          if (["ENOENT", "ENOTDIR", "EACCES", "EPERM"].includes(error.code))
+            continue;
+          throw error;
+        }
         files.push({
           path: relative,
           size: stat.size,

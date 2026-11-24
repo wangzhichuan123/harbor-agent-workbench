@@ -34,7 +34,26 @@ import {
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
+import {
+  mergeSnapshots,
+  clearSubmittedDraft,
+  draftKey,
+  createRequestTracker,
+} from "./session-state.js";
 import "./styles.css";
+
+function readDraft(id) {
+  try {
+    return localStorage.getItem("harbor-draft-" + draftKey(id)) || "";
+  } catch {
+    return "";
+  }
+}
+function saveDraft(id, value) {
+  try {
+    localStorage.setItem("harbor-draft-" + draftKey(id), value);
+  } catch {}
+}
 
 const labels = {
   queued: "排队中",
@@ -147,7 +166,7 @@ function App() {
   const [snapshot, setSnapshot] = useState(null),
     [health, setHealth] = useState(null),
     [search, setSearch] = useState("");
-  const [draft, setDraft] = useState(""),
+  const [drafts, setDrafts] = useState({}),
     [sending, setSending] = useState(false),
     [uploading, setUploading] = useState(false);
   const [error, setError] = useState(""),
@@ -166,13 +185,26 @@ function App() {
     feedRef = useRef();
   const selectedRef = useRef(selected);
   selectedRef.current = selected;
-  const loadSessions = useCallback(
-    () => api("/sessions").then(setSessions),
-    [],
-  );
+  const requests = useRef();
+  if (!requests.current) requests.current = createRequestTracker();
+  const draft = drafts[draftKey(selected)] ?? readDraft(selected);
+  function setDraft(value, id = selected) {
+    setDrafts((old) => ({ ...old, [draftKey(id)]: value }));
+  }
+  function closePreview() {
+    requests.current.invalidate("preview");
+    setPreview(null);
+  }
+  const loadSessions = useCallback(async () => {
+    const isCurrent = requests.current.start("session-list");
+    const rows = await api("/sessions");
+    if (isCurrent()) setSessions(rows);
+  }, []);
   const refresh = useCallback(async (id) => {
+    const isCurrent = requests.current.start(`session:${id}`);
     const data = await api(`/sessions/${id}`);
-    if (selectedRef.current === id) setSnapshot(data);
+    if (selectedRef.current === id && isCurrent())
+      setSnapshot((old) => mergeSnapshots(old, data));
     return data;
   }, []);
   useEffect(() => {
@@ -190,11 +222,8 @@ function App() {
   useEffect(() => {
     setSnapshot(null);
     setError("");
-    setPreview(null);
+    closePreview();
     setMenu(false);
-    setDraft(
-      localStorage.getItem("harbor-draft-" + (selected || "home")) || "",
-    );
     if (!selected) return;
     let stream,
       gone = false;
@@ -206,9 +235,14 @@ function App() {
         stream = new EventSource(
           `/api/sessions/${selected}/events?after=${after}`,
         );
-        stream.onopen = () => setConnected(true);
-        stream.onerror = () => setConnected(false);
+        stream.onopen = () => {
+          if (!gone) setConnected(true);
+        };
+        stream.onerror = () => {
+          if (!gone) setConnected(false);
+        };
         stream.onmessage = (e) => {
+          if (gone) return;
           const event = JSON.parse(e.data);
           setSnapshot((old) => {
             if (
@@ -228,7 +262,9 @@ function App() {
             };
           });
           if (event.type === "status" || event.type === "files") {
-            refresh(selected).catch((e) => setError(e.message));
+            refresh(selected).catch((e) => {
+              if (!gone) setError(e.message);
+            });
             loadSessions().catch(() => {});
           }
         };
@@ -245,17 +281,27 @@ function App() {
     };
   }, [selected]);
   useEffect(() => {
-    localStorage.setItem("harbor-draft-" + (selected || "home"), draft);
-  }, [draft, selected]);
+    for (const [id, value] of Object.entries(drafts)) saveDraft(id, value);
+  }, [drafts]);
+  const hasBackgroundWork = sessions.some((s) => isBusy(s.status));
+  useEffect(() => {
+    const sync = () => loadSessions().catch(() => {});
+    window.addEventListener("focus", sync);
+    const timer = hasBackgroundWork ? setInterval(sync, 5000) : null;
+    return () => {
+      window.removeEventListener("focus", sync);
+      clearInterval(timer);
+    };
+  }, [hasBackgroundWork, loadSessions]);
   useEffect(() => {
     if (notice) {
       const t = setTimeout(() => setNotice(""), 4000);
       return () => clearTimeout(t);
     }
   }, [notice]);
-  const current = snapshot?.session;
-  const activeRun = snapshot?.runs.find((r) => isBusy(r.status));
-  const files = snapshot?.files || [];
+  const current = snapshot?.session.id === selected ? snapshot.session : null;
+  const activeRun = current && snapshot.runs.find((r) => isBusy(r.status));
+  const files = current ? snapshot.files : [];
   function select(id) {
     setSelected(id);
     if (window.innerWidth <= 760) setFilesOpen(false);
@@ -268,7 +314,7 @@ function App() {
         "/sessions",
         json("POST", { title: title || "新的工作", kind }),
       );
-      if (prompt) localStorage.setItem("harbor-draft-" + value.id, prompt);
+      if (prompt) saveDraft(value.id, prompt);
       await loadSessions();
       select(value.id);
       setModal(null);
@@ -277,10 +323,18 @@ function App() {
     }
   }
   async function send() {
-    if (!draft.trim() || sending || activeRun) return;
+    if (
+      !draft.trim() ||
+      sending ||
+      uploading ||
+      activeRun ||
+      (selected && !current)
+    )
+      return;
     setSending(true);
     setError("");
     const text = draft;
+    const draftSession = selected;
     try {
       let id = selected;
       if (!id) {
@@ -292,11 +346,13 @@ function App() {
         select(id);
       }
       await api(`/sessions/${id}/runs`, json("POST", { prompt: text }));
-      setDraft("");
-      localStorage.removeItem("harbor-draft-" + id);
+      setDrafts((old) =>
+        clearSubmittedDraft(old, draftSession, text, readDraft(draftSession)),
+      );
       await Promise.all([refresh(id), loadSessions()]);
       setTimeout(
         () =>
+          selectedRef.current === id &&
           feedRef.current?.scrollTo({
             top: feedRef.current.scrollHeight,
             behavior: "smooth",
@@ -329,9 +385,11 @@ function App() {
       for (const file of list) form.append("files", file);
       await api(`/sessions/${id}/files`, { method: "POST", body: form });
       await Promise.all([refresh(id), loadSessions()]);
-      setFileTab("upload");
-      setFilesOpen(true);
-      setNotice("材料已上传，可以告诉助手你的需求。");
+      if (selectedRef.current === id) {
+        setFileTab("upload");
+        setFilesOpen(true);
+        setNotice("材料已上传，可以告诉助手你的需求。");
+      } else setNotice("材料已上传到原会话，可切换回去查看。");
     } catch (e) {
       setError(e.message);
     } finally {
@@ -340,13 +398,16 @@ function App() {
     }
   }
   async function viewFile(file) {
+    const id = selected;
+    const isCurrent = requests.current.start("preview");
     try {
       const value = await api(
-        `/sessions/${selected}/file?path=${encodeURIComponent(file.path)}`,
+        `/sessions/${id}/file?path=${encodeURIComponent(file.path)}`,
       );
-      setPreview({ ...value, mode: "source" });
+      if (selectedRef.current === id && isCurrent())
+        setPreview({ ...value, sessionId: id, mode: "source" });
     } catch (e) {
-      setError(e.message);
+      if (selectedRef.current === id && isCurrent()) setError(e.message);
     }
   }
   async function rename(e) {
@@ -364,7 +425,7 @@ function App() {
     if (!confirm("删除此会话及全部文件？此操作无法恢复。")) return;
     try {
       await api(`/sessions/${selected}`, { method: "DELETE" });
-      select(null);
+      if (selectedRef.current === selected) select(null);
       await loadSessions();
     } catch (e) {
       setError(e.message);
@@ -537,7 +598,7 @@ function App() {
                   <p>对话、执行过程与成果，持续保存在这里。</p>
                 </div>
                 <div className="heading-actions">
-                  <Status status={snapshot?.runs.at(-1)?.status} />
+                  <Status status={current && snapshot.runs.at(-1)?.status} />
                   <div className="menu-wrap">
                     <IconButton title="会话操作" onClick={() => setMenu(!menu)}>
                       <MoreHorizontal size={20} />
@@ -571,12 +632,12 @@ function App() {
               </div>
             )}
             <div className="feed" ref={feedRef}>
-              {loading && !snapshot ? (
+              {loading && !current ? (
                 <div className="loading">
                   <Loader2 className="spin" />
                   正在载入已保存的工作…
                 </div>
-              ) : !snapshot?.runs.length ? (
+              ) : !current || !snapshot.runs.length ? (
                 <div
                   className={"welcome " + (selected ? "session-welcome" : "")}
                 >
@@ -830,7 +891,12 @@ function App() {
                     <button
                       className="send-button"
                       onClick={send}
-                      disabled={!draft.trim() || sending || uploading}
+                      disabled={
+                        !draft.trim() ||
+                        sending ||
+                        uploading ||
+                        !!(selected && !current)
+                      }
                       aria-label="发送任务"
                     >
                       {sending ? (
@@ -1028,8 +1094,8 @@ function App() {
           </form>
         </div>
       )}
-      {preview && (
-        <div className="modal-backdrop" onClick={() => setPreview(null)}>
+      {preview && preview.sessionId === selected && (
+        <div className="modal-backdrop" onClick={closePreview}>
           <section
             className="preview-modal"
             onClick={(e) => e.stopPropagation()}
@@ -1065,12 +1131,12 @@ function App() {
                 )}
                 <a
                   className="secondary-button"
-                  href={`/api/sessions/${selected}/file?path=${encodeURIComponent(preview.path)}&download=1`}
+                  href={`/api/sessions/${preview.sessionId}/file?path=${encodeURIComponent(preview.path)}&download=1`}
                 >
                   <Download size={14} />
                   下载
                 </a>
-                <IconButton title="关闭预览" onClick={() => setPreview(null)}>
+                <IconButton title="关闭预览" onClick={closePreview}>
                   <X size={20} />
                 </IconButton>
               </div>
@@ -1098,7 +1164,9 @@ function App() {
               )}
             </div>
             <div className="preview-footnote">
-              HTML 预览在隔离环境运行；网络请求与对工作台的访问已禁用。
+              {preview.path.endsWith(".html")
+                ? "HTML 预览在隔离环境运行；网络请求与对工作台的访问已禁用。"
+                : "文件保存在此会话的工作区中，可下载后继续使用。"}
             </div>
           </section>
         </div>

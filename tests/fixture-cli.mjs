@@ -33,6 +33,23 @@ if (prompt.includes("length")) {
   emit("step_finish", { reason: "length" });
   process.exit(0);
 }
+if (prompt.includes("unfinished-next-step")) {
+  emit("step_finish", { reason: "stop" });
+  emit("step_start", {});
+  emit("text", { text: "unfinished step" });
+  process.exit(0);
+}
+if (prompt.includes("long-answer")) {
+  emit("text", {
+    text: "完整回复".repeat(5000) + process.env.AGENT_API_KEY + "回复结束",
+  });
+  emit("tool_use", {
+    tool: "bash",
+    state: { status: "completed", output: "log".repeat(6000) },
+  });
+  emit("step_finish", { reason: "stop" });
+  process.exit(0);
+}
 fs.mkdirSync("artifacts", { recursive: true });
 fs.writeFileSync("artifacts/result.md", "# Completed\n" + prompt);
 emit("tool_use", {

@@ -6,7 +6,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createApp } from "../server/index.js";
 import { createStore } from "../server/store.js";
-import { resolveFile, listFiles } from "../server/files.js";
+import { resolveFile, listFiles, safeName } from "../server/files.js";
+import {
+  mergeSnapshots,
+  clearSubmittedDraft,
+  createRequestTracker,
+} from "../src/session-state.js";
 
 const fixture = fileURLToPath(new URL("./fixture-cli.mjs", import.meta.url));
 const delay = (n) => new Promise((resolve) => setTimeout(resolve, n));
@@ -243,10 +248,42 @@ test("HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up
         );
       });
       assert.match(limited.runs.at(-1).error, /长度限制/);
+      await request(
+        `/sessions/${work.id}/runs`,
+        post({ prompt: "unfinished-next-step" }),
+      );
+      await waitFor(async () => {
+        const s = await read(`/sessions/${work.id}`);
+        return (
+          s.runs.at(-1).prompt === "unfinished-next-step" &&
+          s.runs.at(-1).status === "failed"
+        );
+      });
       const stored = await createStore(root);
       assert.equal(stored.all("SELECT * FROM sessions").length, 2);
       assert.ok(stored.all("SELECT * FROM events").length > 0);
       stored.close();
+    },
+  );
+  await t.test(
+    "long assistant replies are complete while tool logs are visibly truncated and secrets redacted",
+    async () => {
+      await request(
+        `/sessions/${work.id}/runs`,
+        post({ prompt: "long-answer" }),
+      );
+      const snapshot = await waitFor(async () => {
+        const s = await read(`/sessions/${work.id}`);
+        return s.runs.at(-1).status === "completed" && s;
+      });
+      const run = snapshot.runs.at(-1);
+      assert.ok(run.answer.length > 16000);
+      assert.ok(run.answer.endsWith("[REDACTED]回复结束\n\n"));
+      assert.ok(!JSON.stringify(snapshot).includes(process.env.AGENT_API_KEY));
+      const tool = snapshot.events
+        .filter((e) => e.run_id === run.id && e.type === "tool")
+        .at(-1);
+      assert.match(tool.data.output, /展示已截断/);
     },
   );
   await t.test(
@@ -270,6 +307,81 @@ test("HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up
       assert.equal((await read("/sessions")).length, 1);
     },
   );
+});
+
+test("drafts remain scoped to the submitted session and retain edits made during a pending send", () => {
+  const drafts = {
+    first: "sent text",
+    second: "keep this draft",
+    home: "home draft",
+  };
+  assert.deepEqual(clearSubmittedDraft(drafts, "first", "sent text"), {
+    first: "",
+    second: "keep this draft",
+    home: "home draft",
+  });
+  assert.equal(clearSubmittedDraft(drafts, "first", "earlier text"), drafts);
+  assert.deepEqual(clearSubmittedDraft({}, null, "home text", "home text"), {
+    home: "",
+  });
+});
+
+test("stale REST responses cannot discard streamed text or roll a completed run back to running", () => {
+  const previous = {
+    session: { id: "a" },
+    files: [],
+    runs: [{ id: "run", status: "completed" }],
+    events: [
+      { id: 1, run_id: "run", type: "status", data: { status: "running" } },
+      { id: 2, run_id: "run", type: "text", data: { text: "retained reply" } },
+      { id: 3, run_id: "run", type: "status", data: { status: "completed" } },
+    ],
+  };
+  const stale = {
+    ...previous,
+    runs: [{ id: "run", status: "running" }],
+    events: [previous.events[0]],
+  };
+  const merged = mergeSnapshots(previous, stale);
+  assert.equal(merged.runs[0].status, "completed");
+  assert.equal(merged.events[1].data.text, "retained reply");
+  assert.deepEqual(
+    merged.events.map((e) => e.id),
+    [1, 2, 3],
+  );
+  const other = { session: { id: "b" }, runs: [], events: [], files: [] };
+  assert.equal(mergeSnapshots(previous, other), other);
+});
+
+test("late session and preview requests are invalidated without affecting another session", () => {
+  const requests = createRequestTracker();
+  const oldA = requests.start("a"),
+    b = requests.start("b"),
+    newA = requests.start("a");
+  assert.equal(oldA(), false);
+  assert.equal(newA(), true);
+  assert.equal(b(), true);
+  const preview = requests.start("preview");
+  requests.invalidate("preview");
+  assert.equal(preview(), false);
+});
+
+test("Unicode upload names fit Linux byte limits and file listings obey the advertised cap", () => {
+  const name = safeName("经营分析".repeat(50) + ".csv");
+  assert.ok(Buffer.byteLength(name) <= 180);
+  assert.ok(name.endsWith(".csv"));
+  assert.equal(name.includes("\ufffd"), false);
+  assert.throws(() => safeName(".env"));
+  const root = temp();
+  try {
+    fs.writeFileSync(path.join(root, name), "unicode file");
+    for (let i = 0; i < 1505; i++)
+      fs.writeFileSync(path.join(root, `${i}.txt`), "");
+    assert.equal(listFiles(root).length, 1500);
+    assert.deepEqual(listFiles(path.join(root, "missing")), []);
+  } finally {
+    fs.rmSync(root, { recursive: true, force: true });
+  }
 });
 
 test("restart marks running turns interrupted and preserves history and files", async () => {

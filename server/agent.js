@@ -183,11 +183,15 @@ export class AgentRunner {
       this.schedule();
     });
   }
-  redact(text) {
+  redact(text, limit = 16000) {
     const secret = process.env.AGENT_API_KEY;
-    return String(text || "")
-      .replaceAll(secret || crypto.randomUUID(), "[REDACTED]")
-      .slice(0, 16000);
+    const value = String(text || "").replaceAll(
+      secret || crypto.randomUUID(),
+      "[REDACTED]",
+    );
+    return value.length > limit
+      ? value.slice(0, limit) + "\n…（工具输出过长，展示已截断）"
+      : value;
   }
   parse(run, state, line) {
     if (!line.trim()) return;
@@ -208,7 +212,7 @@ export class AgentRunner {
       ]);
     const part = event.part || {};
     if (event.type === "text" && typeof part.text === "string") {
-      const text = this.redact(part.text);
+      const text = this.redact(part.text, Infinity);
       state.answer += text + "\n\n";
       this.emit(run.session_id, run.id, "text", { text });
     } else if (event.type === "tool_use") {
@@ -220,8 +224,10 @@ export class AgentRunner {
         input: this.redact(JSON.stringify(part.state?.input || {})),
         output: this.redact(part.state?.output || part.state?.error || ""),
       });
+    } else if (event.type === "step_start") {
+      state.sawFinish = false;
     } else if (event.type === "step_finish") {
-      if (part.reason === "stop") state.sawFinish = true;
+      state.sawFinish = part.reason === "stop";
       if (part.reason === "length")
         state.error =
           "模型输出达到长度限制，本轮未完成。已保留现有文件，请缩小任务范围后继续；也可调整服务端推理强度或输出限制。";
