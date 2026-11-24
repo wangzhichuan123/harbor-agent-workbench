@@ -2,7 +2,7 @@
 
 把真实的 Agent CLI 放进浏览器：创建会话，描述任务，查看工具执行过程，预览或下载代码与报告，之后回来继续。
 
-这是一个**本机 Docker 运行、单用户使用**的完整应用。当前只创建了本地 Git 仓库，未上传到 GitHub。
+这是一个**本机 Docker 运行、单用户使用**的完整应用。公开源码仓库：[wangzhichuan123/harbor-agent-workbench](https://github.com/wangzhichuan123/harbor-agent-workbench)。
 
 ![工作台](docs/evidence/01-workspace.jpg)
 
@@ -143,15 +143,22 @@ docker compose start
 - 预览只运行**自包含 HTML**，使用无同源权限的 sandbox iframe 与 CSP，禁用网络、表单提交。多文件网站、外部依赖、后端程序请下载后按其说明运行。Python、Node、Git、ripgrep 在镜像中；PDF/Office/OCR 解析库需用户任务自行安装，未预装完整办公套件。
 - 上传与下载不是文件版本控制；覆盖修改会影响当前文件。执行过程中禁止上传以减少材料竞争。完整版本历史与可视化 diff 尚未提供。
 - SSE 和队列状态保存在服务端，多个浏览器可读取同一单用户工作台；浏览器未发送草稿只存当前浏览器 localStorage。
-- 没有自动发布功能；如需要公开 GitHub 仓库，请先阅读下面步骤并确认脱敏。
+- 没有自动发布功能；更新公开仓库前请检查提交内容与密钥排除情况。
 
-## 后续提交 GitHub
+## 获取源码与提交更新
 
-本目录已经是独立本地 Git 仓库。先在 GitHub 创建空公开仓库，再设置你自己的远端：
+公开仓库包含完整源码、README、虚构演示材料与实际运行证据：
+
+```sh
+git clone https://github.com/wangzhichuan123/harbor-agent-workbench.git
+cd harbor-agent-workbench
+```
+
+本地仓库的 `origin` 已关联该地址。提交后续更新时，先扫描跟踪文件、ZIP 内容与全部提交历史：
 
 ```sh
 git status
-git remote add origin https://github.com/<your-name>/harbor-agent-workbench.git
+python scripts/check_secrets.py --history
 git push -u origin main
 ```
 
