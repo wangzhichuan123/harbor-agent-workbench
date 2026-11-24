@@ -1,0 +1,49 @@
+{
+  "verifiedAt": "2026-11-24T02:38:39.048Z",
+  "model": "linext-5.3-luna",
+  "sessions": [
+    {
+      "kind": "code",
+      "id": "04910674-156e-49b1-87fa-8fbb79eb35c5",
+      "runIds": [
+        "fe11ef37-ce81-46fe-bc56-355524674914",
+        "5bcb7fc4-bb91-4324-8096-6dad4c7f7dc1"
+      ],
+      "statuses": [
+        "completed",
+        "completed"
+      ],
+      "eventCount": 61,
+      "toolCalls": 25,
+      "hashes": {
+        "artifacts/pomodoro.html": "cefc251e05ba6138556eb693affdd7d79c1a3accbbf83a40a45694d0fe8c41c4",
+        "artifacts/pomodoro.test.js": "cd47a1351b9e1a02abb87fa3f957bcd1071efbfe2d7215c1c663540259098bfc"
+      }
+    },
+    {
+      "kind": "work",
+      "id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+      "runIds": [
+        "7940a604-b684-4b76-a2b0-363d826a85c0",
+        "0fe269b2-5f18-4802-aaa2-08fc5c9b0fbd"
+      ],
+      "statuses": [
+        "completed",
+        "completed"
+      ],
+      "eventCount": 101,
+      "toolCalls": 39,
+      "hashes": {
+        "artifacts/action-plan.md": "ff3203d67a1f729d8e54084ad09236315a6e436180d8d432ee65b93eb3a408bf",
+        "artifacts/review.md": "292daeedd9629117296690296535b1f316d39798cee1d4ff5279e089a3caacff",
+        "artifacts/summary.csv": "259b8137bbd0028ad9795905f90f8b2ddf4672863bd481c43577cfcea8cf5da5",
+        "scripts/analyze.py": "c36c47470cb477ede8a9c537c87abb89b560281d4a6003519ee3c536ab508626",
+        "scripts/verify_plan.py": "4060beddf76fa863f7133cf5efb79c83591c00366eed3e85b85520c9b9cdc500",
+        "scripts/verify.py": "0089e1fd8c1ffcb757b2f8e4bdb4e8995d64209b93a3dea34c861b5779c2b466",
+        "uploads/meeting-notes.txt": "46dc1f6301f43c90ca696bfd022a077b6505c0c13986fa7c187df75ed7e1f78c",
+        "uploads/sales.csv": "fc109dd34b54b94c1a8aea40c68df7c7a63d7985d6ba403aef58cafe8b8ea380"
+      }
+    }
+  ],
+  "result": "PASS: Docker restart preserved both sessions, turns, events, and all file SHA-256 hashes."
+}

@@ -1,0 +1,60 @@
+
+> harbor-agent-workbench@1.0.0 test
+> node --test tests/workbench.test.js
+
+TAP version 13
+# Subtest: HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up, SSE replay, downloads, failures and cancellation
+    # Subtest: sessions and files are isolated; duplicate uploads preserve originals
+    ok 1 - sessions and files are isolated; duplicate uploads preserve originals
+      ---
+      duration_ms: 67.6545
+      ...
+    # Subtest: queue serializes work, rejects duplicate turns, cancellation stops a process
+    ok 2 - queue serializes work, rejects duplicate turns, cancellation stops a process
+      ---
+      duration_ms: 940.1825
+      ...
+    # Subtest: follow-up reuses CLI session; replay cursor returns only new events; ZIP works
+    ok 3 - follow-up reuses CLI session; replay cursor returns only new events; ZIP works
+      ---
+      duration_ms: 145.1355
+      ...
+    # Subtest: CLI errors are surfaced and secrets redacted; exit zero without stop is not success
+    ok 4 - CLI errors are surfaced and secrets redacted; exit zero without stop is not success
+      ---
+      duration_ms: 318.3191
+      ...
+    # Subtest: deleting a session removes its runs and replay events
+    ok 5 - deleting a session removes its runs and replay events
+      ---
+      duration_ms: 13.8907
+      ...
+    1..5
+ok 1 - HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up, SSE replay, downloads, failures and cancellation
+  ---
+  duration_ms: 1648.1216
+  ...
+# Subtest: restart marks running turns interrupted and preserves history and files
+ok 2 - restart marks running turns interrupted and preserves history and files
+  ---
+  duration_ms: 27.6176
+  ...
+# Subtest: timeout stops a running CLI and keeps a resumable failed turn
+ok 3 - timeout stops a running CLI and keeps a resumable failed turn
+  ---
+  duration_ms: 1729.2236
+  ...
+# Subtest: file listing hides internal state and rejects directory junctions/symlinks
+ok 4 - file listing hides internal state and rejects directory junctions/symlinks
+  ---
+  duration_ms: 4.9164
+  ...
+1..4
+# tests 9
+# suites 0
+# pass 9
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 3655.9992

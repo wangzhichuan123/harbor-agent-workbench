@@ -1,0 +1,12 @@
+{
+  "verifiedAt": "2026-11-24T02:33:48.086Z",
+  "codeTests": "PASS: generated tests independently re-run in an isolated directory",
+  "offlineHTML": "PASS: no external src/href dependencies",
+  "arithmetic": {
+    "result": "PASS: all months and totals match the uploaded source CSV",
+    "revenue": 269000,
+    "refunds": 17050,
+    "cost": 146160,
+    "grossProfit": 122840
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "base": "http://127.0.0.1:3000",
+  "health": {
+    "status": "ok",
+    "configured": true,
+    "model": "linext-5.3-luna",
+    "cli": "OpenCode 1.2.27",
+    "activeRuns": 0,
+    "concurrency": 2
+  },
+  "code": "04910674-156e-49b1-87fa-8fbb79eb35c5",
+  "work": "76d7e51c-3170-4068-bed7-7eca201079b8",
+  "startedAt": "2026-11-24T02:24:53.249Z"
+}

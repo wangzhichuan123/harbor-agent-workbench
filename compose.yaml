@@ -1,0 +1,23 @@
+services:
+  workbench:
+    build: .
+    image: harbor-agent-workbench:local
+    ports:
+      - "127.0.0.1:${PORT:-3000}:3000"
+    environment:
+      AGENT_API_BASE_URL: ${AGENT_API_BASE_URL:?Please set API base URL in .env}
+      AGENT_API_KEY: ${AGENT_API_KEY:?Please set API key in .env}
+      AGENT_MODEL: ${AGENT_MODEL:?Please choose a model in .env}
+      MAX_CONCURRENT_RUNS: ${MAX_CONCURRENT_RUNS:-2}
+      RUN_TIMEOUT_MS: ${RUN_TIMEOUT_MS:-600000}
+      AGENT_REASONING_EFFORT: ${AGENT_REASONING_EFFORT:-low}
+    volumes:
+      - workbench-data:/data
+    restart: unless-stopped
+    stop_grace_period: 15s
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 256
+    mem_limit: 2g
+volumes:
+  workbench-data:

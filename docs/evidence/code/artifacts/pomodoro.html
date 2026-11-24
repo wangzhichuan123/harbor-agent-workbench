@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>离线番茄钟</title>
+<style>
+  :root {
+    --bg: #f5f1e8;
+    --card: #fffdf8;
+    --focus: #d1495b;
+    --focus-soft: #f6d6da;
+    --break: #2a7f62;
+    --break-soft: #d5eae1;
+    --ink: #33302c;
+    --muted: #8b857c;
+    --shadow: 0 18px 45px rgba(60, 50, 40, 0.16);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+      "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    color: var(--ink);
+    background:
+      radial-gradient(circle at 15% 15%, #ffe9d6 0, transparent 45%),
+      radial-gradient(circle at 85% 80%, #d9ece3 0, transparent 45%),
+      var(--bg);
+  }
+  .card {
+    width: 100%;
+    max-width: 420px;
+    background: var(--card);
+    border-radius: 28px;
+    padding: 28px 26px 24px;
+    box-shadow: var(--shadow);
+    text-align: center;
+  }
+  h1 { margin: 0 0 4px; font-size: 22px; letter-spacing: 2px; }
+  .sub { margin: 0 0 18px; color: var(--muted); font-size: 13px; }
+  .tabs { display: flex; gap: 10px; justify-content: center; margin-bottom: 16px; }
+  .tab {
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    padding: 9px 18px;
+    border-radius: 999px;
+    background: #eee9df;
+    color: var(--muted);
+    transition: all .2s ease;
+  }
+  .tab.active-focus { background: var(--focus); color: #fff; }
+  .tab.active-break { background: var(--break); color: #fff; }
+  .dial { position: relative; width: 240px; height: 240px; margin: 0 auto 16px; }
+  .dial svg { transform: rotate(-90deg); display: block; }
+  .dial .time {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+  }
+  .time .value { font-size: 44px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .time .state { font-size: 13px; color: var(--muted); margin-top: 6px; letter-spacing: 1px; }
+  .controls { display: flex; gap: 10px; justify-content: center; }
+  button.btn {
+    cursor: pointer;
+    border: none;
+    border-radius: 14px;
+    padding: 13px 20px;
+    font-size: 15px;
+    transition: transform .12s ease, filter .2s ease;
+  }
+  button.btn:active { transform: translateY(1px); }
+  #startBtn { flex: 1; font-weight: 600; color: #fff; background: var(--ink); }
+  #pauseBtn { background: #e6e0d5; color: var(--ink); }
+  #resetBtn { background: #e6e0d5; color: var(--ink); }
+
+  .panel {
+    margin-top: 18px;
+    padding: 14px 16px;
+    border-radius: 16px;
+    background: #f7f3ea;
+    text-align: left;
+  }
+  .panel h2 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    color: var(--muted);
+  }
+  .dur-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .dur-row label { font-size: 13px; color: var(--ink); }
+  .dur-row input[type="number"] {
+    width: 74px;
+    padding: 7px 8px;
+    font-size: 14px;
+    border-radius: 10px;
+    border: 1px solid #ddd5c7;
+    background: #fff;
+    color: var(--ink);
+  }
+  .dur-row .step {
+    width: 30px; height: 30px; border-radius: 9px; border: none;
+    background: #e6e0d5; color: var(--ink); font-size: 16px; cursor: pointer; line-height: 1;
+  }
+  .dur-row .step:active { transform: translateY(1px); }
+  .dur-row .apply {
+    border: none; cursor: pointer; border-radius: 10px; padding: 8px 14px;
+    font-size: 13px; background: var(--focus); color: #fff;
+  }
+  .range-note { font-size: 11px; color: var(--muted); margin-top: 8px; }
+  .stats { display: flex; gap: 10px; margin-top: 14px; }
+  .stat {
+    flex: 1;
+    background: #fff;
+    border-radius: 12px;
+    padding: 10px 12px;
+    text-align: center;
+    border: 1px solid #ece5d8;
+  }
+  .stat .num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .stat .lbl { font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .stat.focus .num { color: var(--focus); }
+  .stat.break .num { color: var(--break); }
+
+  .hint { margin-top: 14px; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  kbd {
+    background: #ece7dd; border-radius: 5px; padding: 1px 6px;
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px;
+  }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>番茄钟</h1>
+  <p class="sub">专注计时 · 5 分钟休息 · 完全离线</p>
+
+  <div class="tabs">
+    <button class="tab" id="focusTab" type="button">专注 25 分钟</button>
+    <button class="tab" id="breakTab" type="button">休息 5 分钟</button>
+  </div>
+
+  <div class="dial">
+    <svg width="240" height="240" viewBox="0 0 240 240" aria-hidden="true">
+      <circle cx="120" cy="120" r="104" fill="none" stroke="#ece7dd" stroke-width="16"></circle>
+      <circle id="progress" cx="120" cy="120" r="104" fill="none" stroke="#d1495b" stroke-width="16"
+              stroke-linecap="round" stroke-dasharray="653.45" stroke-dashoffset="0"></circle>
+    </svg>
+    <div class="time">
+      <div class="value" id="display">25:00</div>
+      <div class="state" id="stateText">准备开始</div>
+    </div>
+  </div>
+
+  <div class="controls">
+    <button class="btn" id="startBtn" type="button">开始</button>
+    <button class="btn" id="pauseBtn" type="button">暂停</button>
+    <button class="btn" id="resetBtn" type="button">重置</button>
+  </div>
+
+  <div class="panel">
+    <h2>自定义专注时长</h2>
+    <div class="dur-row">
+      <label for="focusMinutesInput">专注</label>
+      <button class="step" id="minusBtn" type="button" aria-label="减少一分钟">−</button>
+      <input type="number" id="focusMinutesInput" min="1" max="60" step="1" value="25" />
+      <button class="step" id="plusBtn" type="button" aria-label="增加一分钟">+</button>
+      <span>分钟</span>
+      <button class="apply" id="applyBtn" type="button">应用</button>
+    </div>
+    <div class="range-note">范围 1–60 分钟，应用后专注阶段重新计时；已完成次数不会被清空。</div>
+    <div class="stats">
+      <div class="stat focus">
+        <div class="num" id="focusCount">0</div>
+        <div class="lbl">已完成专注</div>
+      </div>
+      <div class="stat break">
+        <div class="num" id="breakCount">0</div>
+        <div class="lbl">已完成休息</div>
+      </div>
+    </div>
+  </div>
+
+  <p class="hint">
+    快捷键：<kbd>空格</kbd> 开始/暂停，<kbd>R</kbd> 重置<br />
+    页面关闭后计时不保留，重新打开将重新开始。
+  </p>
+</div>
+
+<script id="pomodoro-core">
+/* 核心逻辑：纯 JS，无任何外部依赖，可在浏览器与 Node 中运行 */
+(function (root) {
+  'use strict';
+
+  var FOCUS = 'focus';
+  var BREAK = 'break';
+
+  var MIN_FOCUS_MINUTES = 1;
+  var MAX_FOCUS_MINUTES = 60;
+
+  var DEFAULT_OPTIONS = {
+    focusMinutes: 25,
+    breakMinutes: 5
+  };
+
+  /* 将输入规整为 1–60 的整数分钟；非法输入回退到 fallback */
+  function normalizeFocusMinutes(value, fallback) {
+    var fb = typeof fallback === 'number' && isFinite(fallback)
+      ? fallback
+      : DEFAULT_OPTIONS.focusMinutes;
+    if (typeof value !== 'number' || !isFinite(value)) return fb;
+    var n = Math.round(value);
+    if (n < MIN_FOCUS_MINUTES) return MIN_FOCUS_MINUTES;
+    if (n > MAX_FOCUS_MINUTES) return MAX_FOCUS_MINUTES;
+    return n;
+  }
+
+  function durationMs(mode, options) {
+    var opts = options || DEFAULT_OPTIONS;
+    var minutes = mode === BREAK ? opts.breakMinutes : opts.focusMinutes;
+    return minutes * 60 * 1000;
+  }
+
+  function formatTime(ms) {
+    var total = Math.max(0, Math.ceil(ms / 1000));
+    var minutes = Math.floor(total / 60);
+    var seconds = total % 60;
+    return (minutes < 10 ? '0' : '') + minutes + ':' + (seconds < 10 ? '0' : '') + seconds;
+  }
+
+  function Pomodoro(options) {
+    this.options = {
+      focusMinutes: DEFAULT_OPTIONS.focusMinutes,
+      breakMinutes: DEFAULT_OPTIONS.breakMinutes
+    };
+    if (options) {
+      if (typeof options.focusMinutes === 'number') {
+        this.options.focusMinutes = normalizeFocusMinutes(options.focusMinutes, DEFAULT_OPTIONS.focusMinutes);
+      }
+      if (typeof options.breakMinutes === 'number') this.options.breakMinutes = options.breakMinutes;
+    }
+    this.mode = FOCUS;
+    this.running = false;
+    this.endAt = 0;
+    this.remainingMs = durationMs(FOCUS, this.options);
+    this.completedFocusCount = 0;
+    this.completedBreakCount = 0;
+
+    /* 阶段编号：每次进入新阶段（切换/重置/自然完成）都会自增。
+       完成计数绑定到阶段编号，保证同一阶段永远只被统计一次，
+       阶段切换不会重复计数。 */
+    this._stageId = 0;
+    this._countedStages = [];
+    this._beginStage();
+  }
+
+  /* 进入一个新阶段（阶段编号自增），完成计数与阶段编号绑定 */
+  Pomodoro.prototype._beginStage = function () {
+    this._stageId += 1;
+    return this._stageId;
+  };
+
+  /* 判断某个阶段是否已经统计过完成 */
+  Pomodoro.prototype._stageAlreadyCounted = function () {
+    return this._countedStages.indexOf(this._stageId) !== -1;
+  };
+
+  /* 标记当前阶段已统计，确保同一阶段不会重复计数 */
+  Pomodoro.prototype._markStageCounted = function () {
+    if (!this._stageAlreadyCounted()) {
+      this._countedStages.push(this._stageId);
+      if (this._countedStages.length > 200) this._countedStages.shift();
+    }
+  };
+
+  Pomodoro.prototype.totalMs = function () {
+    return durationMs(this.mode, this.options);
+  };
+
+  Pomodoro.prototype.isRunning = function () {
+    return this.running === true;
+  };
+
+  Pomodoro.prototype.getFocusMinutes = function () {
+    return this.options.focusMinutes;
+  };
+
+  /* 设置自定义专注时长（分钟），自动夹取到 1–60；返回实际生效值 */
+  Pomodoro.prototype.setFocusMinutes = function (value) {
+    var applied = normalizeFocusMinutes(value, this.options.focusMinutes);
+    this.options.focusMinutes = applied;
+    if (this.mode === FOCUS) {
+      /* 专注阶段按新时长重新计时 */
+      this.running = false;
+      this.endAt = 0;
+      this.remainingMs = this.totalMs();
+      this._beginStage();
+    }
+    return applied;
+  };
+
+  Pomodoro.prototype.start = function (now) {
+    if (this.running) return this;
+    var t = typeof now === 'number' ? now : Date.now();
+    this.endAt = t + this.remainingMs;
+    this.running = true;
+    return this;
+  };
+
+  Pomodoro.prototype.pause = function (now) {
+    if (!this.running) return this;
+    var t = typeof now === 'number' ? now : Date.now();
+    this.remainingMs = Math.max(0, this.endAt - t);
+    this.running = false;
+    return this;
+  };
+
+  Pomodoro.prototype.reset = function () {
+    this.running = false;
+    this.endAt = 0;
+    this.remainingMs = this.totalMs();
+    this._beginStage();
+    return this;
+  };
+
+  Pomodoro.prototype.switchMode = function (mode) {
+    if (mode !== FOCUS && mode !== BREAK) throw new Error('未知模式: ' + mode);
+    this.mode = mode;
+    this.running = false;
+    this.endAt = 0;
+    this.remainingMs = this.totalMs();
+    this._beginStage();
+    return this;
+  };
+
+  /* 推进到指定时刻，返回 { completed, completedMode, nextMode } */
+  Pomodoro.prototype.update = function (now) {
+    if (!this.running) {
+      return { completed: false, completedMode: null, nextMode: null };
+    }
+    var t = typeof now === 'number' ? now : Date.now();
+    if (t < this.endAt) {
+      this.remainingMs = this.endAt - t;
+      return { completed: false, completedMode: null, nextMode: null };
+    }
+
+    var completedMode = this.mode;
+    /* 同一阶段只统计一次 */
+    if (!this._stageAlreadyCounted()) {
+      if (completedMode === FOCUS) this.completedFocusCount += 1;
+      else this.completedBreakCount += 1;
+      this._markStageCounted();
+    }
+
+    var nextMode = completedMode === FOCUS ? BREAK : FOCUS;
+    this.mode = nextMode;
+    this.remainingMs = this.totalMs();
+    this.endAt = this.running ? t + this.remainingMs : 0;
+    this._beginStage(); /* 进入新阶段，编号变化，新阶段可被独立统计 */
+    return { completed: true, completedMode: completedMode, nextMode: nextMode };
+  };
+
+  var api = {
+    FOCUS: FOCUS,
+    BREAK: BREAK,
+    MIN_FOCUS_MINUTES: MIN_FOCUS_MINUTES,
+    MAX_FOCUS_MINUTES: MAX_FOCUS_MINUTES,
+    Pomodoro: Pomodoro,
+    durationMs: durationMs,
+    formatTime: formatTime,
+    normalizeFocusMinutes: normalizeFocusMinutes
+  };
+
+  root.PomodoroCore = api;
+  if (typeof module !== 'undefined' && module.exports) module.exports = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+
+<script>
+(function () {
+  'use strict';
+  var core = window.PomodoroCore;
+  var timer = new core.Pomodoro();
+  var CIRC = 2 * Math.PI * 104;
+  var display = document.getElementById('display');
+  var stateText = document.getElementById('stateText');
+  var progress = document.getElementById('progress');
+  var focusTab = document.getElementById('focusTab');
+  var breakTab = document.getElementById('breakTab');
+  var startBtn = document.getElementById('startBtn');
+  var pauseBtn = document.getElementById('pauseBtn');
+  var resetBtn = document.getElementById('resetBtn');
+  var focusMinutesInput = document.getElementById('focusMinutesInput');
+  var applyBtn = document.getElementById('applyBtn');
+  var plusBtn = document.getElementById('plusBtn');
+  var minusBtn = document.getElementById('minusBtn');
+  var focusCountEl = document.getElementById('focusCount');
+  var breakCountEl = document.getElementById('breakCount');
+
+  function render() {
+    display.textContent = core.formatTime(timer.remainingMs);
+    var ratio = timer.totalMs() === 0 ? 0 : timer.remainingMs / timer.totalMs();
+    progress.style.strokeDashoffset = String(CIRC * (1 - ratio));
+    progress.setAttribute('stroke', timer.mode === core.FOCUS ? '#d1495b' : '#2a7f62');
+    focusTab.className = 'tab' + (timer.mode === core.FOCUS ? ' active-focus' : '');
+    breakTab.className = 'tab' + (timer.mode === core.BREAK ? ' active-break' : '');
+    focusTab.textContent = '专注 ' + timer.getFocusMinutes() + ' 分钟';
+    focusCountEl.textContent = String(timer.completedFocusCount);
+    breakCountEl.textContent = String(timer.completedBreakCount);
+    stateText.textContent = timer.isRunning()
+      ? (timer.mode === core.FOCUS ? '专注中' : '休息中')
+      : (timer.remainingMs === timer.totalMs() ? '准备开始' : '已暂停');
+  }
+
+  function beep() {
+    try {
+      var Ctx = window.AudioContext || window.webkitAudioContext;
+      if (!Ctx) return;
+      var ctx = new Ctx();
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+      osc.connect(gain); gain.connect(ctx.destination);
+      osc.frequency.value = 880;
+      gain.gain.value = 0.0001;
+      osc.start();
+      gain.gain.exponentialRampToValueAtTime(0.2, ctx.currentTime + 0.02);
+      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.5);
+      osc.stop(ctx.currentTime + 0.5);
+    } catch (e) { /* 静音失败不影响计时 */ }
+  }
+
+  function tick() {
+    var result = timer.update(Date.now());
+    if (result.completed) {
+      if (result.completedMode === core.FOCUS) beep();
+      stateText.textContent = result.completedMode === core.FOCUS ? '专注完成，开始休息' : '休息结束，继续专注';
+    }
+    render();
+  }
+
+  function applyFocusMinutes() {
+    var raw = parseInt(focusMinutesInput.value, 10);
+    var applied = timer.setFocusMinutes(isNaN(raw) ? timer.getFocusMinutes() : raw);
+    focusMinutesInput.value = String(applied);
+    render();
+  }
+
+  function stepFocus(delta) {
+    var next = timer.getFocusMinutes() + delta;
+    if (next < core.MIN_FOCUS_MINUTES) next = core.MIN_FOCUS_MINUTES;
+    if (next > core.MAX_FOCUS_MINUTES) next = core.MAX_FOCUS_MINUTES;
+    focusMinutesInput.value = String(next);
+    applyFocusMinutes();
+  }
+
+  startBtn.addEventListener('click', function () {
+    timer.start(Date.now());
+    render();
+  });
+  pauseBtn.addEventListener('click', function () {
+    timer.pause(Date.now());
+    render();
+  });
+  resetBtn.addEventListener('click', function () {
+    timer.reset();
+    render();
+  });
+  focusTab.addEventListener('click', function () {
+    timer.switchMode(core.FOCUS);
+    render();
+  });
+  breakTab.addEventListener('click', function () {
+    timer.switchMode(core.BREAK);
+    render();
+  });
+  applyBtn.addEventListener('click', applyFocusMinutes);
+  plusBtn.addEventListener('click', function () { stepFocus(1); });
+  minusBtn.addEventListener('click', function () { stepFocus(-1); });
+  focusMinutesInput.addEventListener('change', applyFocusMinutes);
+  focusMinutesInput.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter') { e.preventDefault(); applyFocusMinutes(); }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      if (timer.isRunning()) { timer.pause(Date.now()); } else { timer.start(Date.now()); }
+      render();
+    } else if (e.key === 'r' || e.key === 'R') {
+      timer.reset();
+      render();
+    }
+  });
+
+  focusMinutesInput.min = String(core.MIN_FOCUS_MINUTES);
+  focusMinutesInput.max = String(core.MAX_FOCUS_MINUTES);
+  focusMinutesInput.value = String(timer.getFocusMinutes());
+  setInterval(tick, 250);
+  render();
+})();
+</script>
+</body>
+</html>

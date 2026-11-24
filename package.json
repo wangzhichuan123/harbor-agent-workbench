@@ -1,0 +1,31 @@
+{
+  "name": "harbor-agent-workbench",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --env-file=.env server/index.js",
+    "build": "vite build",
+    "start": "node --env-file=.env server/index.js",
+    "test": "node --test tests/workbench.test.js",
+    "demo": "node --env-file=.env scripts/demo.mjs",
+    "check:models": "node --env-file=.env scripts/models.mjs"
+  },
+  "dependencies": {
+    "express": "5.1.0",
+    "lucide-react": "0.468.0",
+    "multer": "2.5.0",
+    "react": "19.0.0",
+    "react-dom": "19.0.0",
+    "react-markdown": "9.0.3",
+    "remark-gfm": "4.0.1",
+    "sql.js": "1.13.0",
+    "yazl": "3.3.1"
+  },
+  "devDependencies": {
+    "vite": "6.4.6"
+  },
+  "engines": {
+    "node": ">=20.19.0"
+  }
+}

@@ -1,0 +1,78 @@
+{
+  "session": {
+    "id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+    "title": "番茄钟 · 从想法到工具",
+    "kind": "code",
+    "created_at": "2026-11-24T02:18:15.392Z",
+    "updated_at": "2026-11-24T02:20:05.902Z"
+  },
+  "runs": [
+    {
+      "id": "231e61e9-aab2-423d-b364-cc337e306fa0",
+      "session_id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+      "prompt": "开发一个独立的离线 HTML 番茄钟，不使用外部依赖。支持 25 分钟专注、5 分钟休息、开始、暂停、重置。保存为 artifacts/pomodoro.html。另写一段 Node 可执行的核心逻辑测试并实际运行。用中文说明成果路径、使用方式和验证结果。不要启动长期服务器。",
+      "status": "failed",
+      "answer": "",
+      "error": "Performing one time database migration, may take a few minutes...\nsqlite-migration:done\nDatabase migration complete.\n",
+      "created_at": "2026-11-24T02:18:15.486Z",
+      "started_at": "2026-11-24T02:18:15.520Z",
+      "finished_at": "2026-11-24T02:20:05.894Z"
+    }
+  ],
+  "events": [
+    {
+      "id": 3,
+      "session_id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+      "run_id": "231e61e9-aab2-423d-b364-cc337e306fa0",
+      "type": "status",
+      "data": {
+        "status": "queued",
+        "message": "任务已加入队列"
+      },
+      "created_at": "2026-11-24T02:18:15.493Z"
+    },
+    {
+      "id": 5,
+      "session_id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+      "run_id": "231e61e9-aab2-423d-b364-cc337e306fa0",
+      "type": "status",
+      "data": {
+        "status": "running",
+        "message": "助手已开始工作"
+      },
+      "created_at": "2026-11-24T02:18:15.526Z"
+    },
+    {
+      "id": 18,
+      "session_id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+      "run_id": "231e61e9-aab2-423d-b364-cc337e306fa0",
+      "type": "usage",
+      "data": {
+        "tokens": {
+          "total": 16833,
+          "input": 8513,
+          "output": 8192,
+          "reasoning": 8192,
+          "cache": {
+            "read": 128,
+            "write": 0
+          }
+        },
+        "reason": "length"
+      },
+      "created_at": "2026-11-24T02:20:05.847Z"
+    },
+    {
+      "id": 19,
+      "session_id": "5276b5a8-7cfc-499d-ab9c-2f328038ccaa",
+      "run_id": "231e61e9-aab2-423d-b364-cc337e306fa0",
+      "type": "status",
+      "data": {
+        "status": "failed",
+        "message": "Performing one time database migration, may take a few minutes...\nsqlite-migration:done\nDatabase migration complete.\n"
+      },
+      "created_at": "2026-11-24T02:20:05.912Z"
+    }
+  ],
+  "files": []
+}
