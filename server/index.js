@@ -8,6 +8,13 @@ import { fileURLToPath } from "node:url";
 import { createStore } from "./store.js";
 import { AgentRunner } from "./agent.js";
 import { listFiles, resolveFile, safeName } from "./files.js";
+import { FileVersions } from "./versions.js";
+import {
+  readSnapshot,
+  readLogs,
+  pageNumber,
+  subscribeEvents,
+} from "./history.js";
 
 const projectDir = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -37,24 +44,18 @@ export async function createApp(options = {}) {
   const store = await createStore(dataDir);
   const app = express();
   const subscribers = new Map();
-  const runner = new AgentRunner({ store, dataDir, config, emit });
+  const versions = new FileVersions(store, dataDir);
+  const runner = new AgentRunner({ store, dataDir, config, emit, versions });
+  // Existing workspaces receive their first baseline without changing the dialogue.
+  for (const row of store.all("SELECT id FROM sessions"))
+    versions.capture(row.id);
   function emit(sessionId, runId, type, data) {
     const createdAt = now();
     store.run(
       "INSERT INTO events(session_id,run_id,type,data,created_at) VALUES(?,?,?,?,?)",
       [sessionId, runId, type, JSON.stringify(data), createdAt],
     );
-    const id = store.one("SELECT MAX(id) AS id FROM events").id;
-    const event = {
-      id,
-      session_id: sessionId,
-      run_id: runId,
-      type,
-      data,
-      created_at: createdAt,
-    };
-    for (const res of subscribers.get(sessionId) || [])
-      res.write(`id: ${id}\ndata: ${JSON.stringify(event)}\n\n`);
+    for (const client of subscribers.get(sessionId) || []) client.pump();
   }
   function session(id) {
     const value = store.one("SELECT * FROM sessions WHERE id=?", [id]);
@@ -143,18 +144,19 @@ export async function createApp(options = {}) {
   });
   app.get("/api/sessions/:id", (req, res) => {
     const value = session(req.params.id);
-    const events = store
-      .all("SELECT * FROM events WHERE session_id=? ORDER BY id", [value.id])
-      .map((e) => ({ ...e, data: JSON.parse(e.data) }));
+    const history = readSnapshot(store, value.id, {
+      full: req.query.full === "1",
+      before:
+        req.query.before === undefined
+          ? undefined
+          : pageNumber(req.query.before),
+      limit: pageNumber(req.query.limit, 20, 100),
+    });
     // Private CLI ids are retained on the server but not needed by the interface.
     delete value.cli_session;
     res.json({
       session: value,
-      runs: store.all(
-        "SELECT * FROM runs WHERE session_id=? ORDER BY created_at,rowid",
-        [value.id],
-      ),
-      events,
+      ...history,
       files: listFiles(runner.workspace(value.id)),
     });
   });
@@ -180,8 +182,9 @@ export async function createApp(options = {}) {
       recursive: true,
       force: true,
     });
+    fs.rmSync(versions.directory(value.id), { recursive: true, force: true });
     store.run("DELETE FROM sessions WHERE id=?", [value.id]);
-    for (const response of subscribers.get(value.id) || []) response.end();
+    for (const client of subscribers.get(value.id) || []) client.end();
     subscribers.delete(value.id);
     res.json({ ok: true });
   });
@@ -237,21 +240,98 @@ export async function createApp(options = {}) {
       "X-Accel-Buffering": "no",
     });
     res.flushHeaders();
-    for (const row of store.all(
-      "SELECT * FROM events WHERE session_id=? AND id>? ORDER BY id",
-      [value.id, cursor],
-    )) {
-      res.write(
-        `id: ${row.id}\ndata: ${JSON.stringify({ ...row, data: JSON.parse(row.data) })}\n\n`,
-      );
-    }
     if (!subscribers.has(value.id)) subscribers.set(value.id, new Set());
-    subscribers.get(value.id).add(res);
-    const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 15000);
-    req.on("close", () => {
-      clearInterval(heartbeat);
-      subscribers.get(value.id)?.delete(res);
+    const client = subscribeEvents(store, value.id, res, cursor, () =>
+      subscribers.get(value.id)?.delete(client),
+    );
+    subscribers.get(value.id).add(client);
+    client.pump();
+  });
+  app.get("/api/sessions/:id/logs", (req, res) => {
+    session(req.params.id);
+    res.json(readLogs(store, req.params.id, req.query));
+  });
+  app.get("/api/sessions/:id/logs/:eventId", (req, res) => {
+    session(req.params.id);
+    const event = store.one(
+      "SELECT * FROM events WHERE session_id=? AND id=?",
+      [req.params.id, pageNumber(req.params.eventId)],
+    );
+    if (!event) throw httpError(404, "日志不存在");
+    if (req.query.download === "1") res.attachment(`log-${event.id}.json`);
+    res.json({ ...event, data: JSON.parse(event.data) });
+  });
+  app.get("/api/sessions/:id/versions", (req, res) => {
+    const value = session(req.params.id);
+    if (!busy(value.id)) versions.capture(value.id);
+    if (req.query.path === undefined)
+      return res.json({
+        files: store.all(
+          "SELECT v.path,v.deleted,v.created_at,COUNT(h.id) AS version_count FROM file_versions v JOIN (SELECT path,MAX(id) AS last FROM file_versions WHERE session_id=? GROUP BY path) x ON x.last=v.id JOIN file_versions h ON h.session_id=v.session_id AND h.path=v.path GROUP BY v.id ORDER BY v.path",
+          [value.id],
+        ),
+      });
+    let name;
+    try {
+      name = versions.validate(value.id, req.query.path);
+    } catch (error) {
+      throw httpError(400, error.message);
+    }
+    const limit = pageNumber(req.query.limit, 20, 100),
+      before = pageNumber(req.query.before, Number.MAX_SAFE_INTEGER);
+    const rows = store.all(
+      "SELECT * FROM file_versions WHERE session_id=? AND path=? AND id<? ORDER BY id DESC LIMIT ?",
+      [value.id, name, before, limit + 1],
+    );
+    res.json({
+      items: rows.slice(0, limit),
+      hasMore: rows.length > limit,
+      nextBefore: rows.slice(0, limit).at(-1)?.id || null,
+      head:
+        store.one(
+          "SELECT id FROM file_versions WHERE session_id=? AND path=? ORDER BY id DESC LIMIT 1",
+          [value.id, name],
+        )?.id || null,
     });
+  });
+  app.get("/api/sessions/:id/versions/:versionId", (req, res) => {
+    const value = session(req.params.id),
+      version = versions.get(value.id, pageNumber(req.params.versionId));
+    if (!version) throw httpError(404, "版本不存在");
+    if (version.deleted) return res.json({ ...version, content: null });
+    const file = versions.blob(version);
+    if (req.query.download === "1")
+      return res.download(file, path.basename(version.path));
+    if (version.size > 1024 * 1024)
+      return res.json({ ...version, binary: true });
+    const bytes = fs.readFileSync(file),
+      binary = bytes.subarray(0, 8192).includes(0);
+    res.json({
+      ...version,
+      binary,
+      content: binary ? null : bytes.toString("utf8"),
+    });
+  });
+  app.post("/api/sessions/:id/versions/:versionId/restore", (req, res) => {
+    const value = session(req.params.id);
+    if (busy(value.id))
+      throw httpError(409, "请先停止此会话的任务，再回滚成果");
+    const target = versions.get(value.id, pageNumber(req.params.versionId));
+    if (!target) throw httpError(404, "版本不存在");
+    let head;
+    try {
+      head = versions.restore(value.id, target);
+    } catch (error) {
+      throw httpError(400, "回滚失败：" + error.message);
+    }
+    store.run("UPDATE sessions SET updated_at=? WHERE id=?", [now(), value.id]);
+    emit(value.id, null, "files", {
+      action: "restore",
+      path: target.path,
+      fromVersion: target.id,
+      currentVersion: head.id,
+    });
+    res.json({ ok: true, path: target.path, version: head });
   });
   const upload = multer({
     storage: multer.memoryStorage(),
@@ -358,9 +438,11 @@ export async function createApp(options = {}) {
     app,
     store,
     runner,
+    versions,
     close: () => {
       runner.shutdown();
-      for (const set of subscribers.values()) for (const res of set) res.end();
+      for (const set of subscribers.values())
+        for (const client of set) client.end();
     },
   };
 }

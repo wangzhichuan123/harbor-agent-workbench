@@ -1,0 +1,103 @@
+{
+  "checkedAt": "2026-11-24T03:35:25.443Z",
+  "sessions": [
+    {
+      "id": "04910674-156e-49b1-87fa-8fbb79eb35c5",
+      "versions": [
+        {
+          "id": 1,
+          "session_id": "04910674-156e-49b1-87fa-8fbb79eb35c5",
+          "path": "artifacts/pomodoro.html",
+          "hash": "cefc251e05ba6138556eb693affdd7d79c1a3accbbf83a40a45694d0fe8c41c4",
+          "size": 17490,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.458Z"
+        },
+        {
+          "id": 2,
+          "session_id": "04910674-156e-49b1-87fa-8fbb79eb35c5",
+          "path": "artifacts/pomodoro.test.js",
+          "hash": "cd47a1351b9e1a02abb87fa3f957bcd1071efbfe2d7215c1c663540259098bfc",
+          "size": 11534,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.459Z"
+        }
+      ]
+    },
+    {
+      "id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+      "versions": [
+        {
+          "id": 3,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "artifacts/action-plan.md",
+          "hash": "ff3203d67a1f729d8e54084ad09236315a6e436180d8d432ee65b93eb3a408bf",
+          "size": 11611,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.496Z"
+        },
+        {
+          "id": 4,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "artifacts/review.md",
+          "hash": "292daeedd9629117296690296535b1f316d39798cee1d4ff5279e089a3caacff",
+          "size": 7454,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.496Z"
+        },
+        {
+          "id": 5,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "artifacts/summary.csv",
+          "hash": "259b8137bbd0028ad9795905f90f8b2ddf4672863bd481c43577cfcea8cf5da5",
+          "size": 639,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.496Z"
+        },
+        {
+          "id": 6,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "scripts/analyze.py",
+          "hash": "c36c47470cb477ede8a9c537c87abb89b560281d4a6003519ee3c536ab508626",
+          "size": 7028,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.496Z"
+        },
+        {
+          "id": 8,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "scripts/verify.py",
+          "hash": "0089e1fd8c1ffcb757b2f8e4bdb4e8995d64209b93a3dea34c861b5779c2b466",
+          "size": 4059,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.497Z"
+        },
+        {
+          "id": 7,
+          "session_id": "76d7e51c-3170-4068-bed7-7eca201079b8",
+          "path": "scripts/verify_plan.py",
+          "hash": "4060beddf76fa863f7133cf5efb79c83591c00366eed3e85b85520c9b9cdc500",
+          "size": 10094,
+          "deleted": 0,
+          "run_id": null,
+          "reason": "baseline",
+          "created_at": "2026-11-24T03:35:19.496Z"
+        }
+      ]
+    }
+  ]
+}

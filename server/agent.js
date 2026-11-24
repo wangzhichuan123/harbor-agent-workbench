@@ -4,8 +4,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 
 export class AgentRunner {
-  constructor({ store, dataDir, emit, config }) {
-    Object.assign(this, { store, dataDir, emit, config });
+  constructor({ store, dataDir, emit, config, versions }) {
+    Object.assign(this, { store, dataDir, emit, config, versions });
     this.active = new Map();
     this.closed = false;
     this.store.run(
@@ -30,6 +30,18 @@ export class AgentRunner {
       run.session_id,
     ]);
     const dir = this.workspace(session.id);
+    try {
+      this.versions?.capture(session.id, run.id, "before_run");
+    } catch (error) {
+      const message = "成果备份失败，未启动任务：" + this.redact(error.message);
+      this.store.run(
+        "UPDATE runs SET status='failed',error=?,finished_at=? WHERE id=?",
+        [message, new Date().toISOString(), run.id],
+      );
+      this.emit(session.id, run.id, "status", { status: "failed", message });
+      setImmediate(() => this.schedule());
+      return;
+    }
     const state = {
       child: null,
       answer: "",
@@ -152,6 +164,12 @@ export class AgentRunner {
     child.on("close", (code) => {
       if (state.buffer.trim()) this.parse(run, state, state.buffer);
       clearTimeout(state.timer);
+      try {
+        this.versions?.capture(session.id, run.id, "after_run");
+      } catch (error) {
+        state.error =
+          "任务已结束，但成果版本保存失败：" + this.redact(error.message);
+      }
       const status =
         state.stopReason ||
         (code === 0 && !state.error && state.sawFinish

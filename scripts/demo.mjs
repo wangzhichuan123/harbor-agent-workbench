@@ -7,7 +7,8 @@ const base =
 const evidence = path.resolve("docs/evidence");
 await fs.mkdir(evidence, { recursive: true });
 async function call(url, options) {
-  const r = await fetch(base + "/api" + url, options);
+  const requestUrl = /^\/sessions\/[^/?]+$/.test(url) ? url + "?full=1" : url;
+  const r = await fetch(base + "/api" + requestUrl, options);
   if (!r.ok) throw new Error(`${r.status}: ${await r.text()}`);
   return r.json();
 }

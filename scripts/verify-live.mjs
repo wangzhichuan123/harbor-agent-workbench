@@ -13,7 +13,7 @@ const results = {
 for (const kind of ["code", "work"]) {
   const id = index[kind],
     base = index.base;
-  const snapshot = await fetch(`${base}/api/sessions/${id}`).then((r) =>
+  const snapshot = await fetch(`${base}/api/sessions/${id}?full=1`).then((r) =>
     r.json(),
   );
   assert.equal(snapshot.runs.length, 2);

@@ -1,0 +1,146 @@
+
+> harbor-agent-workbench@1.0.0 test
+> node --test tests/workbench.test.js
+
+TAP version 13
+# Subtest: live log bursts keep every middle page reachable
+ok 1 - live log bursts keep every middle page reachable
+  ---
+  duration_ms: 1.5323
+  ...
+# Subtest: HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up, SSE replay, downloads, failures and cancellation
+    # Subtest: sessions and files are isolated; duplicate uploads preserve originals
+    ok 1 - sessions and files are isolated; duplicate uploads preserve originals
+      ---
+      duration_ms: 76.7867
+      ...
+    # Subtest: queue serializes work, rejects duplicate turns, cancellation stops a process
+    ok 2 - queue serializes work, rejects duplicate turns, cancellation stops a process
+      ---
+      duration_ms: 964.7885
+      ...
+    # Subtest: follow-up reuses CLI session; replay cursor returns only new events; ZIP works
+    ok 3 - follow-up reuses CLI session; replay cursor returns only new events; ZIP works
+      ---
+      duration_ms: 154.364
+      ...
+    # Subtest: CLI errors are surfaced and secrets redacted; exit zero without stop is not success
+    ok 4 - CLI errors are surfaced and secrets redacted; exit zero without stop is not success
+      ---
+      duration_ms: 462.99
+      ...
+    # Subtest: long assistant replies are complete while tool logs are visibly truncated and secrets redacted
+    ok 5 - long assistant replies are complete while tool logs are visibly truncated and secrets redacted
+      ---
+      duration_ms: 148.8971
+      ...
+    # Subtest: deleting a session removes its runs and replay events
+    ok 6 - deleting a session removes its runs and replay events
+      ---
+      duration_ms: 16.5298
+      ...
+    1..6
+ok 2 - HTTP lifecycle: multi-session, upload, real subprocess protocol, follow-up, SSE replay, downloads, failures and cancellation
+  ---
+  duration_ms: 1992.9676
+  ...
+# Subtest: drafts remain scoped to the submitted session and retain edits made during a pending send
+ok 3 - drafts remain scoped to the submitted session and retain edits made during a pending send
+  ---
+  duration_ms: 0.3465
+  ...
+# Subtest: stale REST responses cannot discard streamed text or roll a completed run back to running
+ok 4 - stale REST responses cannot discard streamed text or roll a completed run back to running
+  ---
+  duration_ms: 0.4635
+  ...
+# Subtest: late session and preview requests are invalidated without affecting another session
+ok 5 - late session and preview requests are invalidated without affecting another session
+  ---
+  duration_ms: 0.1671
+  ...
+# Subtest: Unicode upload names fit Linux byte limits and file listings obey the advertised cap
+ok 6 - Unicode upload names fit Linux byte limits and file listings obey the advertised cap
+  ---
+  duration_ms: 728.1647
+  ...
+# Subtest: restart marks running turns interrupted and preserves history and files
+ok 7 - restart marks running turns interrupted and preserves history and files
+  ---
+  duration_ms: 31.9264
+  ...
+# Subtest: timeout stops a running CLI and keeps a resumable failed turn
+ok 8 - timeout stops a running CLI and keeps a resumable failed turn
+  ---
+  duration_ms: 1779.8774
+  ...
+# Subtest: file listing hides internal state and rejects directory junctions/symlinks
+ok 9 - file listing hides internal state and rejects directory junctions/symlinks
+  ---
+  duration_ms: 4.5574
+  ...
+# Subtest: version rollback, legacy migration and paginated searchable logs
+    # Subtest: existing workspaces get a baseline; each CLI turn saves immutable changed content
+    ok 1 - existing workspaces get a baseline; each CLI turn saves immutable changed content
+      ---
+      duration_ms: 310.8049
+      ...
+    # Subtest: rollback backs up unsaved edits and can itself be reversed
+    ok 2 - rollback backs up unsaved edits and can itself be reversed
+      ---
+      duration_ms: 131.5309
+      ...
+    # Subtest: deleted files can be restored and deletion versions can be selected
+    ok 3 - deleted files can be restored and deletion versions can be selected
+      ---
+      duration_ms: 102.592
+      ...
+    # Subtest: versions persist across store reload and cannot cross sessions or symlinks
+    ok 4 - versions persist across store reload and cannot cross sessions or symlinks
+      ---
+      duration_ms: 65.1946
+      ...
+    # Subtest: rollback is rejected while a CLI task is running
+    ok 5 - rollback is rejected while a CLI task is running
+      ---
+      duration_ms: 724.2918
+      ...
+    # Subtest: binary versions stream across chunks and corrupted history never overwrites the current file
+    ok 6 - binary versions stream across chunks and corrupted history never overwrites the current file
+      ---
+      duration_ms: 107.895
+      ...
+    # Subtest: dialogue pages are bounded and cursor pagination has no gaps or duplicates
+    ok 7 - dialogue pages are bounded and cursor pagination has no gaps or duplicates
+      ---
+      duration_ms: 23.3744
+      ...
+    # Subtest: log search covers unloaded history, literal Unicode terms, types and task prompts
+    ok 8 - log search covers unloaded history, literal Unicode terms, types and task prompts
+      ---
+      duration_ms: 13.3912
+      ...
+    # Subtest: SSE replays multiple bounded batches in order
+    ok 9 - SSE replays multiple bounded batches in order
+      ---
+      duration_ms: 5.4495
+      ...
+    1..9
+ok 10 - version rollback, legacy migration and paginated searchable logs
+  ---
+  duration_ms: 1544.6537
+  ...
+# Subtest: bounded live events preserve full reply text and paginated snapshots keep older loaded turns
+ok 11 - bounded live events preserve full reply text and paginated snapshots keep older loaded turns
+  ---
+  duration_ms: 2.6246
+  ...
+1..11
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 6311.8918

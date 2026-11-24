@@ -31,6 +31,7 @@ import {
   RefreshCw,
   Play,
   Copy,
+  History,
 } from "lucide-react";
 import Markdown from "react-markdown";
 import remarkGfm from "remark-gfm";
@@ -39,8 +40,12 @@ import {
   clearSubmittedDraft,
   draftKey,
   createRequestTracker,
+  applyLiveEvent,
 } from "./session-state.js";
+import { ExecutionLog, LogDialog } from "./LogViewer.jsx";
+import VersionHistory from "./VersionHistory.jsx";
 import "./styles.css";
+import "./history.css";
 
 function readDraft(id) {
   try {
@@ -180,6 +185,9 @@ function App() {
     [formKind, setFormKind] = useState("general"),
     [menu, setMenu] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false),
+    [logsOpen, setLogsOpen] = useState(false),
+    [versionTarget, setVersionTarget] = useState(null);
   const uploadRef = useRef(),
     textareaRef = useRef(),
     feedRef = useRef();
@@ -223,6 +231,9 @@ function App() {
     setSnapshot(null);
     setError("");
     closePreview();
+    setLogsOpen(false);
+    setVersionTarget(null);
+    setLoadingOlder(false);
     setMenu(false);
     if (!selected) return;
     let stream,
@@ -231,12 +242,18 @@ function App() {
     refresh(selected)
       .then((data) => {
         if (gone) return;
-        const after = data.events.at(-1)?.id || 0;
+        const after = data.eventCursor ?? data.events.at(-1)?.id ?? 0;
         stream = new EventSource(
           `/api/sessions/${selected}/events?after=${after}`,
         );
         stream.onopen = () => {
-          if (!gone) setConnected(true);
+          if (!gone) {
+            setConnected(true);
+            refresh(selected).catch((e) => {
+              if (!gone) setError(e.message);
+            });
+            loadSessions().catch(() => {});
+          }
         };
         stream.onerror = () => {
           if (!gone) setConnected(false);
@@ -244,23 +261,7 @@ function App() {
         stream.onmessage = (e) => {
           if (gone) return;
           const event = JSON.parse(e.data);
-          setSnapshot((old) => {
-            if (
-              !old ||
-              old.session.id !== selected ||
-              old.events.some((v) => v.id === event.id)
-            )
-              return old;
-            return {
-              ...old,
-              events: [...old.events, event],
-              runs: old.runs.map((r) =>
-                r.id === event.run_id && event.type === "status"
-                  ? { ...r, status: event.data.status }
-                  : r,
-              ),
-            };
-          });
+          setSnapshot((old) => applyLiveEvent(old, event));
           if (event.type === "status" || event.type === "files") {
             refresh(selected).catch((e) => {
               if (!gone) setError(e.message);
@@ -436,6 +437,34 @@ function App() {
     setFormKind("general");
     setModal("new");
   }
+  async function loadOlder() {
+    const id = selected,
+      before = snapshot?.page?.nextBefore;
+    if (!before || loadingOlder) return;
+    setLoadingOlder(true);
+    const oldHeight = feedRef.current?.scrollHeight || 0,
+      oldTop = feedRef.current?.scrollTop || 0;
+    try {
+      const data = await api(`/sessions/${id}?before=${before}&limit=20`);
+      if (selectedRef.current !== id) return;
+      setSnapshot((old) => mergeSnapshots(old, data));
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() => {
+          if (selectedRef.current === id && feedRef.current)
+            feedRef.current.scrollTop =
+              oldTop + feedRef.current.scrollHeight - oldHeight;
+        }),
+      );
+    } catch (e) {
+      if (selectedRef.current === id) setError(e.message);
+    } finally {
+      if (selectedRef.current === id) setLoadingOlder(false);
+    }
+  }
+  function showVersions(filePath = "") {
+    closePreview();
+    setVersionTarget({ sessionId: selected, path: filePath });
+  }
   const counts = {
     artifact: files.filter((f) => f.source === "artifact").length,
     upload: files.filter((f) => f.source === "upload").length,
@@ -598,6 +627,13 @@ function App() {
                   <p>对话、执行过程与成果，持续保存在这里。</p>
                 </div>
                 <div className="heading-actions">
+                  <IconButton
+                    title="搜索会话日志"
+                    disabled={!current}
+                    onClick={() => setLogsOpen(true)}
+                  >
+                    <Search size={18} />
+                  </IconButton>
                   <Status status={current && snapshot.runs.at(-1)?.status} />
                   <div className="menu-wrap">
                     <IconButton title="会话操作" onClick={() => setMenu(!menu)}>
@@ -695,6 +731,19 @@ function App() {
                 </div>
               ) : (
                 <div className="messages">
+                  {snapshot.page?.hasMore && (
+                    <div className="older-turns">
+                      <button
+                        className="secondary-button"
+                        disabled={loadingOlder}
+                        onClick={loadOlder}
+                      >
+                        {loadingOlder
+                          ? "加载中…"
+                          : `加载更早对话（已显示 ${snapshot.runs.length} / ${snapshot.page.total} 轮）`}
+                      </button>
+                    </div>
+                  )}
                   {snapshot.runs.map((run, index) => {
                     const events = snapshot.events.filter(
                       (e) => e.run_id === run.id,
@@ -732,48 +781,12 @@ function App() {
                               <span>助手</span>
                               <Status status={run.status} />
                             </div>
-                            <details
-                              className="trace"
-                              open={isBusy(run.status) || undefined}
-                            >
-                              <summary>
-                                <Terminal size={15} />
-                                <span>
-                                  {isBusy(run.status)
-                                    ? run.status === "queued"
-                                      ? "等待可用执行位置"
-                                      : "正在工作，可以切换到其他会话"
-                                    : `执行记录 · ${tools.length} 次工具调用`}
-                                </span>
-                                <ChevronDown size={15} />
-                              </summary>
-                              <div className="trace-content">
-                                {!tools.length && (
-                                  <p>
-                                    {run.status === "queued"
-                                      ? "任务已保存，将在有空闲位置时开始。"
-                                      : isBusy(run.status)
-                                        ? "正在启动 CLI 并连接模型…"
-                                        : "本次执行没有工具调用。"}
-                                  </p>
-                                )}
-                                {tools.map((event, i) => (
-                                  <details className="tool-item" key={event.id}>
-                                    <summary>
-                                      <Check size={13} />
-                                      <code>{event.data.tool}</code>
-                                      <span>{event.data.title}</span>
-                                      <ChevronDown size={13} />
-                                    </summary>
-                                    <pre>
-                                      {event.data.input}
-                                      {event.data.output &&
-                                        "\n\n" + event.data.output}
-                                    </pre>
-                                  </details>
-                                ))}
-                              </div>
-                            </details>
+                            <ExecutionLog
+                              sessionId={selected}
+                              run={run}
+                              api={api}
+                              liveCursor={events.at(-1)?.id}
+                            />
                             {answer && <Md>{answer}</Md>}
                             {isBusy(run.status) && !answer && (
                               <div className="thinking">
@@ -923,6 +936,9 @@ function App() {
                   <FolderOpen size={17} />
                   工作文件
                 </h2>
+                <IconButton title="成果版本历史" onClick={() => showVersions()}>
+                  <History size={17} />
+                </IconButton>
                 <IconButton
                   title="刷新文件"
                   onClick={() =>
@@ -1106,6 +1122,15 @@ function App() {
                 <strong>{preview.path}</strong>
               </div>
               <div>
+                {!preview.path.startsWith("uploads/") && (
+                  <button
+                    className="secondary-button"
+                    onClick={() => showVersions(preview.path)}
+                  >
+                    <History size={14} />
+                    版本历史
+                  </button>
+                )}
                 {preview.path.endsWith(".html") && !preview.binary && (
                   <button
                     className="secondary-button"
@@ -1170,6 +1195,29 @@ function App() {
             </div>
           </section>
         </div>
+      )}
+      {logsOpen && selected && (
+        <LogDialog
+          key={selected}
+          sessionId={selected}
+          api={api}
+          liveCursor={snapshot?.eventCursor}
+          onClose={() => setLogsOpen(false)}
+        />
+      )}
+      {versionTarget?.sessionId === selected && (
+        <VersionHistory
+          key={selected}
+          sessionId={selected}
+          initialPath={versionTarget.path}
+          api={api}
+          busy={!!activeRun}
+          onClose={() => setVersionTarget(null)}
+          onRestored={async (result) => {
+            await Promise.all([refresh(selected), loadSessions()]);
+            setNotice(`已恢复 ${result.path}，当前内容已先备份。`);
+          }}
+        />
       )}
     </div>
   );

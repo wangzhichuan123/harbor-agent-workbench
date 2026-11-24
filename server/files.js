@@ -23,7 +23,7 @@ export function safeName(name) {
   const stem = clean.slice(0, clean.length - path.extname(clean).length);
   return truncateUtf8(stem, 180 - Buffer.byteLength(extension)) + extension;
 }
-export function resolveFile(root, relative) {
+export function workspacePath(root, relative, allowMissing = false) {
   if (typeof relative !== "string" || !relative || relative.includes("\0"))
     throw new Error("文件路径无效");
   const parts = relative.replaceAll("\\", "/").split("/");
@@ -38,9 +38,19 @@ export function resolveFile(root, relative) {
   let cursor = root;
   for (const part of parts) {
     cursor = path.join(cursor, part);
-    if (fs.lstatSync(cursor).isSymbolicLink())
-      throw new Error("不允许访问符号链接");
+    let stat;
+    try {
+      stat = fs.lstatSync(cursor);
+    } catch (error) {
+      if (allowMissing && error.code === "ENOENT") continue;
+      throw error;
+    }
+    if (stat.isSymbolicLink()) throw new Error("不允许访问符号链接");
   }
+  return absolute;
+}
+export function resolveFile(root, relative) {
+  const absolute = workspacePath(root, relative);
   if (!fs.statSync(absolute).isFile()) throw new Error("文件不存在");
   return absolute;
 }

@@ -13,6 +13,9 @@ export async function createStore(directory) {
     CREATE TABLE IF NOT EXISTS sessions (id TEXT PRIMARY KEY, title TEXT NOT NULL, kind TEXT NOT NULL, cli_session TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
     CREATE TABLE IF NOT EXISTS runs (id TEXT PRIMARY KEY, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, prompt TEXT NOT NULL, status TEXT NOT NULL, answer TEXT NOT NULL DEFAULT '', error TEXT, created_at TEXT NOT NULL, started_at TEXT, finished_at TEXT);
     CREATE TABLE IF NOT EXISTS events (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, run_id TEXT REFERENCES runs(id) ON DELETE CASCADE, type TEXT NOT NULL, data TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE TABLE IF NOT EXISTS file_versions (id INTEGER PRIMARY KEY AUTOINCREMENT, session_id TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE, path TEXT NOT NULL, hash TEXT, size INTEGER NOT NULL, deleted INTEGER NOT NULL DEFAULT 0, run_id TEXT REFERENCES runs(id) ON DELETE SET NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL);
+    CREATE INDEX IF NOT EXISTS versions_path ON file_versions(session_id,path,id);
+    CREATE INDEX IF NOT EXISTS events_run ON events(session_id,run_id,id);
     CREATE INDEX IF NOT EXISTS events_session ON events(session_id,id);
     CREATE INDEX IF NOT EXISTS runs_session ON runs(session_id,created_at);`);
   function flush() {
