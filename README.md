@@ -16,7 +16,7 @@ cp .env.example .env
 docker compose up -d --build --wait
 ```
 
-Windows PowerShell 可使用 `Copy-Item .env.example .env`。打开 **http://localhost:3000**。
+Windows PowerShell 可使用 `Copy-Item .env.example .env`。打开 [工作台](http://localhost:3000)。
 
 已有本地 `.env` 时请保留，不要用示例覆盖。密钥只在服务端使用；`.env`、运行数据和 CLI 状态均被 Git 与 Docker 构建上下文排除。
 
